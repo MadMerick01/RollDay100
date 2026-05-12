@@ -339,7 +339,7 @@
     <section class="card situation-card" aria-labelledby="situation-heading">
       <h2 id="situation-heading">Current check-in situation</h2>
       <div id="currentCheckInSituation" class="situation-grid" aria-live="polite"></div>
-      <p class="helper">Each action or check-in fills the next available rule slot in order.</p>
+      <p class="helper">Each action or check-in can fill the next available rule slot in order, but only once per 6-hour window.</p>
     </section>
 
     <section class="card roll-card" aria-labelledby="roll-heading">
@@ -379,7 +379,7 @@
     <section class="card" aria-labelledby="bars-heading">
       <h2 id="bars-heading">Today’s check-in bars</h2>
       <div id="checkInBars" class="bars"></div>
-      <p class="helper">Each action or check-in earns the next slot. Today’s check-ins earn tomorrow’s possible rules in order: Fresh, Coffee, Chocolate, then Bread + Chocolate.</p>
+      <p class="helper">Only one check-in can be completed in each 6-hour window. Today’s check-ins earn tomorrow’s possible rules in order: Fresh, Coffee, Chocolate, then Bread + Chocolate.</p>
     </section>
 
     <section class="card" aria-labelledby="next-rules-heading">
@@ -440,6 +440,7 @@
         dayStartCarryover: 0,
         manualAdjustmentsToday: 0,
         checkInsToday: [false, false, false, false],
+        checkInWindowsToday: [false, false, false, false],
         currentDayRules: {
           fresh: false,
           coffee: false,
@@ -467,6 +468,9 @@
         checkInsToday: Array.isArray(savedState.checkInsToday)
           ? [0, 1, 2, 3].map((index) => Boolean(savedState.checkInsToday[index]))
           : freshState.checkInsToday,
+        checkInWindowsToday: Array.isArray(savedState.checkInWindowsToday)
+          ? [0, 1, 2, 3].map((index) => Boolean(savedState.checkInWindowsToday[index]))
+          : freshState.checkInWindowsToday,
         currentDayRules: {
           ...freshState.currentDayRules,
           ...(savedState.currentDayRules || {})
@@ -547,16 +551,33 @@
       return state.checkInsToday.findIndex((checkedIn) => !checkedIn);
     }
 
-    function markCheckIn() {
+    function getCheckInAvailability(date = new Date()) {
+      const currentWindowIndex = getCurrentWindowIndex(date);
       const nextCheckInIndex = getNextCheckInIndex();
 
-      if (nextCheckInIndex === -1) {
-        return false;
+      return {
+        currentWindowIndex,
+        nextCheckInIndex,
+        hasOpenSlot: nextCheckInIndex !== -1,
+        windowAvailable: !state.checkInWindowsToday[currentWindowIndex]
+      };
+    }
+
+    function markCheckIn() {
+      const availability = getCheckInAvailability();
+
+      if (!availability.hasOpenSlot) {
+        return 'slots-full';
       }
 
-      state.checkInsToday[nextCheckInIndex] = true;
+      if (!availability.windowAvailable) {
+        return 'window-used';
+      }
+
+      state.checkInsToday[availability.nextCheckInIndex] = true;
+      state.checkInWindowsToday[availability.currentWindowIndex] = true;
       saveState();
-      return true;
+      return 'recorded';
     }
 
     function getAccruedToday(now = Date.now(), midnight = getTodayMidnight()) {
@@ -630,6 +651,7 @@
         date: state.currentDateKey,
         finalBalance,
         checkIns: previousCheckIns,
+        checkInWindows: [...state.checkInWindowsToday],
         currentDayRules: { ...state.currentDayRules },
         junkFoodKjUsedToday: state.junkFoodKjUsedToday,
         rolledForDate: state.lastRollDateKey === state.currentDateKey
@@ -646,6 +668,7 @@
       state.dayStartCarryover = finalBalance;
       state.manualAdjustmentsToday = 0;
       state.checkInsToday = [false, false, false, false];
+      state.checkInWindowsToday = [false, false, false, false];
       state.junkFoodKjUsedToday = 0;
       state.currentDateKey = todayKey;
       statusMessage = 'New day started. Press ROLL to calculate today’s rules.';
@@ -681,6 +704,30 @@
       render();
     }
 
+    function getManualCheckInMessage(checkInResult) {
+      if (checkInResult === 'recorded') {
+        return 'Check-in recorded. The next rule slot was earned.';
+      }
+
+      if (checkInResult === 'window-used') {
+        return 'This 6-hour check-in window has already been used. Try again in the next window.';
+      }
+
+      return 'All rule slots are already earned for tomorrow.';
+    }
+
+    function getActionCheckInMessage(checkInResult, successMessage, actionOnlyMessage) {
+      if (checkInResult === 'recorded') {
+        return successMessage;
+      }
+
+      if (checkInResult === 'window-used') {
+        return `${actionOnlyMessage} This 6-hour check-in window was already used, so no new rule slot was earned.`;
+      }
+
+      return `${actionOnlyMessage} All rule slots are already earned.`;
+    }
+
     function handleUseJunkFood() {
       handleDateRollover();
 
@@ -698,29 +745,31 @@
 
       state.manualAdjustmentsToday -= 100;
       state.junkFoodKjUsedToday += 100;
-      const checkedIn = markCheckIn();
-      statusMessage = checkedIn
-        ? 'Used 100 kJ of junk food and earned the next rule slot.'
-        : 'Used 100 kJ of junk food. All rule slots are already earned.';
+      const checkInResult = markCheckIn();
+      statusMessage = getActionCheckInMessage(
+        checkInResult,
+        'Used 100 kJ of junk food and earned the next rule slot.',
+        'Used 100 kJ of junk food.'
+      );
       render();
     }
 
     function handleExercise() {
       handleDateRollover();
       state.manualAdjustmentsToday += 100;
-      const checkedIn = markCheckIn();
-      statusMessage = checkedIn
-        ? 'Exercise added 100 kJ and earned the next rule slot.'
-        : 'Exercise added 100 kJ. All rule slots are already earned.';
+      const checkInResult = markCheckIn();
+      statusMessage = getActionCheckInMessage(
+        checkInResult,
+        'Exercise added 100 kJ and earned the next rule slot.',
+        'Exercise added 100 kJ.'
+      );
       render();
     }
 
     function handleCheckIn() {
       handleDateRollover();
-      const checkedIn = markCheckIn();
-      statusMessage = checkedIn
-        ? 'Check-in recorded. The next rule slot was earned.'
-        : 'All rule slots are already earned for tomorrow.';
+      const checkInResult = markCheckIn();
+      statusMessage = getManualCheckInMessage(checkInResult);
       render();
     }
 
@@ -773,14 +822,28 @@
 
       const now = new Date();
       const currentWindowIndex = getCurrentWindowIndex(now);
-      const nextCheckInIndex = getNextCheckInIndex();
+      const availability = getCheckInAvailability(now);
+      const nextCheckInIndex = availability.nextCheckInIndex;
       const nextRuleLabel = nextCheckInIndex === -1 ? 'All slots earned' : CHECK_IN_LABELS[nextCheckInIndex];
       const earnedCount = state.checkInsToday.filter(Boolean).length;
       const nextWindowIn = formatDuration(getWindowEnd(currentWindowIndex, now) - now);
+      const windowStatus = !availability.hasOpenSlot
+        ? 'All slots earned'
+        : availability.windowAvailable
+          ? 'Available now'
+          : 'Used this window';
+      const windowStatusDetail = !availability.hasOpenSlot
+        ? 'Tomorrow’s rule slots are complete.'
+        : availability.windowAvailable
+          ? 'One check-in can be completed during the current 6-hour window.'
+          : `Next check-in window opens in ${nextWindowIn}.`;
+
+      document.getElementById('checkInBtn').disabled = !availability.hasOpenSlot || !availability.windowAvailable;
 
       document.getElementById('currentCheckInSituation').innerHTML = [
         `<div class="situation-item"><span class="label">Next check-in earns</span><strong>${nextRuleLabel}</strong><div class="helper">Rules are earned from top to bottom.</div></div>`,
-        `<div class="situation-item"><span class="label">Progress today</span><strong>${earnedCount} / ${CHECK_IN_LABELS.length} slots earned</strong><div class="helper">Current 6-hour window ends in ${nextWindowIn}</div></div>`
+        `<div class="situation-item"><span class="label">Progress today</span><strong>${earnedCount} / ${CHECK_IN_LABELS.length} slots earned</strong><div class="helper">Current 6-hour window ends in ${nextWindowIn}</div></div>`,
+        `<div class="situation-item"><span class="label">Current 6-hour window</span><strong>${windowStatus}</strong><div class="helper">${windowStatusDetail}</div></div>`
       ].join('');
 
       const barsMarkup = CHECK_IN_LABELS.map((label, index) => {
@@ -789,7 +852,8 @@
         const currentClass = index === nextCheckInIndex ? ' current' : '';
         const status = complete ? 'Complete' : 'Incomplete';
         const activeText = complete ? 'Earned in order' : index === nextCheckInIndex ? 'Up next' : 'Locked';
-        return `<div class="bar ${className}${currentClass}"><span class="bar-main"><strong>${label}</strong><span class="bar-window">Check-in ${index + 1}</span></span><span class="bar-status"><strong>${status}</strong><small>${activeText}</small></span></div>`;
+        const windowUsed = state.checkInWindowsToday[index] ? 'Window used' : 'Window not used';
+        return `<div class="bar ${className}${currentClass}"><span class="bar-main"><strong>${label}</strong><span class="bar-window">${getWindowRange(index)} · ${windowUsed}</span></span><span class="bar-status"><strong>${status}</strong><small>${activeText}</small></span></div>`;
       }).join('');
       document.getElementById('checkInBars').innerHTML = barsMarkup;
 
