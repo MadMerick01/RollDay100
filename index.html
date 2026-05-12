@@ -634,6 +634,10 @@
       return carryover + getAccruedToday(nextMidnight, midnight) + manualAdjustments;
     }
 
+    function canCarryJunkKjToNextDay(rules) {
+      return Boolean(rules.chocolate || rules.breadChocolate);
+    }
+
     function handleDateRollover() {
       const todayKey = getDateKey(new Date());
       if (todayKey === state.currentDateKey) {
@@ -641,18 +645,22 @@
       }
 
       const previousCheckIns = [...state.checkInsToday];
+      const previousDayRules = { ...state.currentDayRules };
       const finalBalance = calculateFinalBalanceForDate(
         state.currentDateKey,
         state.dayStartCarryover,
         state.manualAdjustmentsToday
       );
+      const carriesJunkKj = canCarryJunkKjToNextDay(previousDayRules);
+      const nextDayCarryover = carriesJunkKj ? finalBalance : 0;
 
       state.history.push({
         date: state.currentDateKey,
         finalBalance,
+        carriedBalance: nextDayCarryover,
         checkIns: previousCheckIns,
         checkInWindows: [...state.checkInWindowsToday],
-        currentDayRules: { ...state.currentDayRules },
+        currentDayRules: previousDayRules,
         junkFoodKjUsedToday: state.junkFoodKjUsedToday,
         rolledForDate: state.lastRollDateKey === state.currentDateKey
       });
@@ -661,17 +669,20 @@
         fromDateKey: state.currentDateKey,
         forDateKey: todayKey,
         checkIns: previousCheckIns,
-        finalBalance
+        finalBalance,
+        carriedBalance: nextDayCarryover
       };
       state.currentDayRules = getBlankRules();
       state.rollStatusToday = getBlankRollStatus();
-      state.dayStartCarryover = finalBalance;
+      state.dayStartCarryover = nextDayCarryover;
       state.manualAdjustmentsToday = 0;
       state.checkInsToday = [false, false, false, false];
       state.checkInWindowsToday = [false, false, false, false];
       state.junkFoodKjUsedToday = 0;
       state.currentDateKey = todayKey;
-      statusMessage = 'New day started. Press ROLL to calculate today’s rules.';
+      statusMessage = carriesJunkKj
+        ? 'New day started. Junk food kJ carried over because chocolate or bread + chocolate was unlocked. Press ROLL to calculate today’s rules.'
+        : 'New day started. Junk food kJ did not carry over because chocolate and bread + chocolate were locked. Press ROLL to calculate today’s rules.';
       saveState();
     }
 
