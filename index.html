@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RollDay100</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111827;
+      --panel: #1f2937;
+      --panel-soft: #263244;
+      --text: #f9fafb;
+      --muted: #cbd5e1;
+      --green: #22c55e;
+      --green-dark: #166534;
+      --red: #ef4444;
+      --red-dark: #7f1d1d;
+      --blue: #38bdf8;
+      --yellow: #facc15;
+      --border: rgba(255, 255, 255, 0.12);
+      --shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 34rem),
+        var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(100%, 46rem);
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    .app-header {
+      padding: 1rem 0 0.4rem;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.4rem, 11vw, 4.2rem);
+      line-height: 1;
+      letter-spacing: -0.06em;
+    }
+
+    h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+
+    .card {
+      margin: 0.85rem 0;
+      padding: 1rem;
+      background: rgba(31, 41, 55, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 1.2rem;
+      box-shadow: var(--shadow);
+    }
+
+    .countdown {
+      font-size: clamp(1.3rem, 6vw, 2.4rem);
+      font-weight: 800;
+      text-align: center;
+      color: var(--blue);
+    }
+
+    .balance-card {
+      text-align: center;
+      border-color: rgba(56, 189, 248, 0.42);
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 0.92rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .balance-number {
+      margin-top: 0.25rem;
+      font-size: clamp(3rem, 16vw, 6.5rem);
+      font-weight: 900;
+      line-height: 0.95;
+      letter-spacing: -0.08em;
+    }
+
+    .balance-unit {
+      color: var(--muted);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    button {
+      min-height: 3.35rem;
+      border: 0;
+      border-radius: 0.95rem;
+      color: #08111f;
+      background: var(--blue);
+      font: inherit;
+      font-size: 1.03rem;
+      font-weight: 850;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:active {
+      transform: translateY(1px) scale(0.99);
+    }
+
+    button:hover,
+    button:focus-visible {
+      filter: brightness(1.08);
+    }
+
+    .secondary {
+      background: var(--yellow);
+    }
+
+    .neutral {
+      background: #e5e7eb;
+    }
+
+    .danger {
+      width: 100%;
+      margin-top: 0.5rem;
+      color: #fff;
+      background: var(--red);
+    }
+
+    .status {
+      min-height: 2.65rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .bars {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 3rem;
+      padding: 0.75rem 0.85rem;
+      border-radius: 0.9rem;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      font-weight: 850;
+    }
+
+    .bar span:last-child {
+      font-size: 0.85rem;
+      opacity: 0.9;
+    }
+
+    .complete {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: #f0fdf4;
+    }
+
+    .incomplete {
+      background: linear-gradient(135deg, var(--red-dark), var(--red));
+      color: #fff7f7;
+    }
+
+    .rule-list {
+      display: grid;
+      gap: 0.55rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .rule-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.7rem 0.8rem;
+      background: var(--panel-soft);
+      border-radius: 0.8rem;
+      color: var(--muted);
+    }
+
+    .rule-list strong {
+      color: var(--text);
+    }
+
+    .pill {
+      flex: 0 0 auto;
+      padding: 0.25rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .pill-yes {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+    }
+
+    .pill-no {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+    }
+
+    .usage {
+      font-size: clamp(1.3rem, 7vw, 2.2rem);
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .note,
+    .helper {
+      margin: 0.5rem 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .health-note {
+      color: #fde68a;
+      font-size: 0.9rem;
+    }
+
+    @media (min-width: 42rem) {
+      main {
+        padding: 1.4rem;
+      }
+
+      .button-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .bars {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="app-header">
+      <h1>RollDay100</h1>
+    </header>
+
+    <section class="card" aria-labelledby="countdown-heading">
+      <h2 id="countdown-heading">100-day countdown</h2>
+      <div id="countdown" class="countdown" aria-live="polite">Loading...</div>
+    </section>
+
+    <section class="card balance-card" aria-labelledby="balance-heading">
+      <div id="balance-heading" class="label">Junk Food kJ Available</div>
+      <div id="balance" class="balance-number">0</div>
+      <div class="balance-unit">kJ for chocolate, bread, or bread + chocolate only</div>
+    </section>
+
+    <section class="card" aria-labelledby="actions-heading">
+      <h2 id="actions-heading">Main actions</h2>
+      <div class="button-grid">
+        <button id="useJunkFoodBtn" type="button">Use Junk Food 100 kJ</button>
+        <button id="exerciseBtn" class="secondary" type="button">Exercise 100 kJ</button>
+        <button id="checkInBtn" class="neutral" type="button">Check In</button>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">Ready.</div>
+    </section>
+
+    <section class="card" aria-labelledby="bars-heading">
+      <h2 id="bars-heading">Today’s check-in bars</h2>
+      <div id="checkInBars" class="bars"></div>
+      <p class="helper">Each action checks off the current six-hour window. Today’s completed bars earn possible rules for tomorrow.</p>
+    </section>
+
+    <section class="card" aria-labelledby="current-rules-heading">
+      <h2 id="current-rules-heading">Current Day Rules</h2>
+      <ul id="currentRules" class="rule-list"></ul>
+      <p class="helper">Fresh food and coffee do not use the kJ counter when allowed.</p>
+    </section>
+
+    <section class="card" aria-labelledby="next-rules-heading">
+      <h2 id="next-rules-heading">Next Day Possible Rules</h2>
+      <ul id="nextRules" class="rule-list"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="usage-heading">
+      <h2 id="usage-heading">Junk food usage tracker</h2>
+      <div id="junkUsage" class="usage">Junk food used today: 0 / 3200 kJ</div>
+      <p class="helper">The 3200 kJ daily cap applies only to junk food, not fresh food or coffee.</p>
+    </section>
+
+    <section class="card" aria-labelledby="settings-heading">
+      <h2 id="settings-heading">Reset / settings</h2>
+      <p class="health-note">Health note: This tracker is for personal habit tracking only. Very low energy intake or restrictive dieting should only be followed with appropriate medical guidance.</p>
+      <button id="resetBtn" class="danger" type="button">Reset Challenge</button>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'rollDay100State';
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    const DAILY_JUNK_CAP = 3200;
+    const CHECK_IN_LABELS = [
+      'Fresh',
+      'Coffee',
+      '50% Roll: Chocolate',
+      '50% Roll: Bread + Chocolate'
+    ];
+
+    let state;
+    let statusMessage = 'Ready.';
+
+    function getDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getTodayMidnight() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    }
+
+    function getMidnightForDateKey(dateKey) {
+      const [year, month, day] = dateKey.split('-').map(Number);
+      return new Date(year, month - 1, day).getTime();
+    }
+
+    function createInitialState() {
+      const now = Date.now();
+      return {
+        challengeStart: now,
+        currentDateKey: getDateKey(new Date(now)),
+        dayStartCarryover: 0,
+        manualAdjustmentsToday: 0,
+        checkInsToday: [false, false, false, false],
+        currentDayRules: {
+          fresh: false,
+          coffee: false,
+          chocolate: false,
+          breadChocolate: false
+        },
+        rollStatusToday: {
+          chocolateEarned: false,
+          chocolateRollPassed: false,
+          breadChocolateEarned: false,
+          breadChocolateRollPassed: false
+        },
+        junkFoodKjUsedToday: 0,
+        history: []
+      };
+    }
+
+    function normalizeState(savedState) {
+      const freshState = createInitialState();
+      return {
+        ...freshState,
+        ...savedState,
+        checkInsToday: Array.isArray(savedState.checkInsToday)
+          ? [0, 1, 2, 3].map((index) => Boolean(savedState.checkInsToday[index]))
+          : freshState.checkInsToday,
+        currentDayRules: {
+          ...freshState.currentDayRules,
+          ...(savedState.currentDayRules || {})
+        },
+        rollStatusToday: {
+          ...freshState.rollStatusToday,
+          ...(savedState.rollStatusToday || {})
+        },
+        history: Array.isArray(savedState.history) ? savedState.history : []
+      };
+    }
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) {
+        state = createInitialState();
+        saveState();
+        return;
+      }
+
+      try {
+        state = normalizeState(JSON.parse(saved));
+      } catch (error) {
+        state = createInitialState();
+        statusMessage = 'Saved data could not be read. A new challenge was started.';
+      }
+
+      saveState();
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function getCurrentWindowIndex() {
+      return Math.floor(new Date().getHours() / 6);
+    }
+
+    function markCheckIn() {
+      const windowIndex = getCurrentWindowIndex();
+      state.checkInsToday[windowIndex] = true;
+      saveState();
+    }
+
+    function getAccruedToday(now = Date.now(), midnight = getTodayMidnight()) {
+      return Math.max(0, now - midnight) * (100 / ONE_HOUR_MS);
+    }
+
+    function getDisplayBalance() {
+      return state.dayStartCarryover + getAccruedToday() + state.manualAdjustmentsToday;
+    }
+
+    function generateRulesFromCheckIns(checkIns) {
+      const chocolateEarned = Boolean(checkIns[2]);
+      const breadChocolateEarned = Boolean(checkIns[3]);
+      const chocolateRollPassed = chocolateEarned ? Math.random() < 0.5 : false;
+      const breadChocolateRollPassed = breadChocolateEarned ? Math.random() < 0.5 : false;
+
+      return {
+        rules: {
+          fresh: Boolean(checkIns[0]),
+          coffee: Boolean(checkIns[1]),
+          chocolate: chocolateRollPassed,
+          breadChocolate: breadChocolateRollPassed
+        },
+        rollStatus: {
+          chocolateEarned,
+          chocolateRollPassed,
+          breadChocolateEarned,
+          breadChocolateRollPassed
+        }
+      };
+    }
+
+    function calculateFinalBalanceForDate(dateKey, carryover, manualAdjustments) {
+      const midnight = getMidnightForDateKey(dateKey);
+      const nextMidnight = midnight + ONE_DAY_MS;
+      return carryover + getAccruedToday(nextMidnight, midnight) + manualAdjustments;
+    }
+
+    function handleDateRollover() {
+      const todayKey = getDateKey(new Date());
+      if (todayKey === state.currentDateKey) {
+        return;
+      }
+
+      const previousCheckIns = [...state.checkInsToday];
+      const finalBalance = calculateFinalBalanceForDate(
+        state.currentDateKey,
+        state.dayStartCarryover,
+        state.manualAdjustmentsToday
+      );
+      const generated = generateRulesFromCheckIns(previousCheckIns);
+
+      state.history.push({
+        date: state.currentDateKey,
+        finalBalance,
+        checkIns: previousCheckIns,
+        currentDayRules: { ...state.currentDayRules },
+        junkFoodKjUsedToday: state.junkFoodKjUsedToday
+      });
+
+      state.currentDayRules = generated.rules;
+      state.rollStatusToday = generated.rollStatus;
+      state.dayStartCarryover = finalBalance;
+      state.manualAdjustmentsToday = 0;
+      state.checkInsToday = [false, false, false, false];
+      state.junkFoodKjUsedToday = 0;
+      state.currentDateKey = todayKey;
+      statusMessage = 'New day started. Rules updated.';
+      saveState();
+    }
+
+    function handleUseJunkFood() {
+      handleDateRollover();
+
+      if (!state.currentDayRules.chocolate && !state.currentDayRules.breadChocolate) {
+        statusMessage = 'Junk food is not available under today’s rules.';
+        render();
+        return;
+      }
+
+      if (state.junkFoodKjUsedToday + 100 > DAILY_JUNK_CAP) {
+        statusMessage = 'Daily junk food cap reached.';
+        render();
+        return;
+      }
+
+      state.manualAdjustmentsToday -= 100;
+      state.junkFoodKjUsedToday += 100;
+      markCheckIn();
+      statusMessage = 'Used 100 kJ of junk food.';
+      render();
+    }
+
+    function handleExercise() {
+      handleDateRollover();
+      state.manualAdjustmentsToday += 100;
+      markCheckIn();
+      statusMessage = 'Exercise added 100 kJ.';
+      render();
+    }
+
+    function handleCheckIn() {
+      handleDateRollover();
+      markCheckIn();
+      statusMessage = 'Check-in recorded for this window.';
+      render();
+    }
+
+    function getRollRuleText(foodKey, earnedKey, passedKey) {
+      if (state.currentDayRules[foodKey]) {
+        return { text: 'Allowed', allowed: true };
+      }
+
+      if (state.rollStatusToday[earnedKey] && !state.rollStatusToday[passedKey]) {
+        return { text: 'Roll failed', allowed: false };
+      }
+
+      return { text: 'Not earned', allowed: false };
+    }
+
+    function renderRuleRow(label, status) {
+      const pillClass = status.allowed ? 'pill-yes' : 'pill-no';
+      return `<li><strong>${label}</strong><span class="pill ${pillClass}">${status.text}</span></li>`;
+    }
+
+    function render() {
+      handleDateRollover();
+
+      const challengeEnd = state.challengeStart + (100 * ONE_DAY_MS);
+      const remaining = challengeEnd - Date.now();
+      const countdownEl = document.getElementById('countdown');
+
+      if (remaining <= 0) {
+        countdownEl.textContent = 'Challenge complete';
+      } else {
+        const days = Math.floor(remaining / ONE_DAY_MS);
+        const hours = Math.floor((remaining % ONE_DAY_MS) / ONE_HOUR_MS);
+        const minutes = Math.floor((remaining % ONE_HOUR_MS) / (60 * 1000));
+        const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+        countdownEl.textContent = `${days} days ${String(hours).padStart(2, '0')} hours ${String(minutes).padStart(2, '0')} minutes ${String(seconds).padStart(2, '0')} seconds`;
+      }
+
+      document.getElementById('balance').textContent = Math.floor(getDisplayBalance()).toLocaleString();
+      document.getElementById('status').textContent = statusMessage;
+
+      const barsMarkup = CHECK_IN_LABELS.map((label, index) => {
+        const complete = state.checkInsToday[index];
+        const className = complete ? 'complete' : 'incomplete';
+        const status = complete ? 'Complete' : 'Incomplete';
+        return `<div class="bar ${className}"><span>${label}</span><span>${status}</span></div>`;
+      }).join('');
+      document.getElementById('checkInBars').innerHTML = barsMarkup;
+
+      const chocolateStatus = getRollRuleText('chocolate', 'chocolateEarned', 'chocolateRollPassed');
+      const breadChocolateStatus = getRollRuleText('breadChocolate', 'breadChocolateEarned', 'breadChocolateRollPassed');
+      document.getElementById('currentRules').innerHTML = [
+        renderRuleRow('Fresh food', { text: state.currentDayRules.fresh ? 'Allowed' : 'Not allowed', allowed: state.currentDayRules.fresh }),
+        renderRuleRow('Coffee', { text: state.currentDayRules.coffee ? 'Allowed' : 'Not allowed', allowed: state.currentDayRules.coffee }),
+        renderRuleRow('Chocolate', chocolateStatus),
+        renderRuleRow('Bread + Chocolate', breadChocolateStatus)
+      ].join('');
+
+      document.getElementById('nextRules').innerHTML = [
+        renderRuleRow('Fresh', { text: state.checkInsToday[0] ? 'Earned for tomorrow' : 'Not yet earned', allowed: state.checkInsToday[0] }),
+        renderRuleRow('Coffee', { text: state.checkInsToday[1] ? 'Earned for tomorrow' : 'Not yet earned', allowed: state.checkInsToday[1] }),
+        renderRuleRow('Chocolate', { text: state.checkInsToday[2] ? '50% roll will occur tomorrow' : 'Not yet earned', allowed: state.checkInsToday[2] }),
+        renderRuleRow('Bread + Chocolate', { text: state.checkInsToday[3] ? '50% roll will occur tomorrow' : 'Not yet earned', allowed: state.checkInsToday[3] })
+      ].join('');
+
+      document.getElementById('junkUsage').textContent = `Junk food used today: ${state.junkFoodKjUsedToday} / ${DAILY_JUNK_CAP} kJ`;
+    }
+
+    function resetChallenge() {
+      const confirmed = window.confirm('Reset RollDay100 and clear all saved progress?');
+      if (!confirmed) {
+        return;
+      }
+
+      localStorage.removeItem(STORAGE_KEY);
+      statusMessage = 'Challenge reset. A new 100-day challenge has started.';
+      loadState();
+      render();
+    }
+
+    document.getElementById('useJunkFoodBtn').addEventListener('click', handleUseJunkFood);
+    document.getElementById('exerciseBtn').addEventListener('click', handleExercise);
+    document.getElementById('checkInBtn').addEventListener('click', handleCheckIn);
+    document.getElementById('resetBtn').addEventListener('click', resetChallenge);
+
+    loadState();
+    render();
+    setInterval(render, 1000);
+  </script>
+</body>
+</html>
