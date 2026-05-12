@@ -87,6 +87,31 @@
       border-color: rgba(250, 204, 21, 0.45);
     }
 
+    .situation-card {
+      border-color: rgba(34, 197, 94, 0.38);
+    }
+
+    .situation-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .situation-item {
+      padding: 0.8rem;
+      background: var(--panel-soft);
+      border-radius: 0.85rem;
+    }
+
+    .situation-item strong {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 1.08rem;
+    }
+
+    .situation-item .label {
+      font-size: 0.74rem;
+    }
+
     .roll-button {
       width: min(100%, 18rem);
       margin-top: 0.75rem;
@@ -188,6 +213,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 0.75rem;
       min-height: 3rem;
       padding: 0.75rem 0.85rem;
       border-radius: 0.9rem;
@@ -195,9 +221,27 @@
       font-weight: 850;
     }
 
-    .bar span:last-child {
-      font-size: 0.85rem;
-      opacity: 0.9;
+    .bar.current {
+      outline: 2px solid var(--yellow);
+      outline-offset: 2px;
+    }
+
+    .bar-main,
+    .bar-status {
+      display: grid;
+      gap: 0.1rem;
+    }
+
+    .bar-status {
+      justify-items: end;
+      text-align: right;
+    }
+
+    .bar-window,
+    .bar-status small {
+      color: rgba(255, 255, 255, 0.84);
+      font-size: 0.78rem;
+      font-weight: 750;
     }
 
     .complete {
@@ -279,7 +323,8 @@
         grid-template-columns: repeat(3, 1fr);
       }
 
-      .bars {
+      .bars,
+      .situation-grid {
         grid-template-columns: repeat(2, 1fr);
       }
     }
@@ -290,6 +335,12 @@
     <header class="app-header">
       <h1>RollDay100</h1>
     </header>
+
+    <section class="card situation-card" aria-labelledby="situation-heading">
+      <h2 id="situation-heading">Current check-in situation</h2>
+      <div id="currentCheckInSituation" class="situation-grid" aria-live="polite"></div>
+      <p class="helper">Only the active six-hour window is checked off when you use an action or press Check In.</p>
+    </section>
 
     <section class="card roll-card" aria-labelledby="roll-heading">
       <h2 id="roll-heading">Daily Roll</h2>
@@ -452,8 +503,44 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    function getCurrentWindowIndex() {
-      return Math.floor(new Date().getHours() / 6);
+    function getCurrentWindowIndex(date = new Date()) {
+      return Math.floor(date.getHours() / 6);
+    }
+
+    function formatTime(hour) {
+      const normalizedHour = hour % 24;
+      const period = normalizedHour >= 12 ? 'PM' : 'AM';
+      const twelveHour = normalizedHour % 12 || 12;
+      return `${twelveHour}:00 ${period}`;
+    }
+
+    function getWindowRange(index) {
+      const startHour = index * 6;
+      const endHour = (index + 1) * 6;
+      return `${formatTime(startHour)}–${formatTime(endHour)}`;
+    }
+
+    function getWindowEnd(index, date = new Date()) {
+      const endHour = (index + 1) * 6;
+      const end = new Date(date);
+      end.setMinutes(0, 0, 0);
+
+      if (endHour >= 24) {
+        end.setDate(end.getDate() + 1);
+        end.setHours(0);
+      } else {
+        end.setHours(endHour);
+      }
+
+      return end;
+    }
+
+    function formatDuration(ms) {
+      const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
     function markCheckIn() {
@@ -668,11 +755,25 @@
       document.getElementById('balance').textContent = Math.floor(getDisplayBalance()).toLocaleString();
       document.getElementById('status').textContent = statusMessage;
 
+      const now = new Date();
+      const currentWindowIndex = getCurrentWindowIndex(now);
+      const currentWindowLabel = CHECK_IN_LABELS[currentWindowIndex];
+      const currentWindowRange = getWindowRange(currentWindowIndex);
+      const currentWindowComplete = state.checkInsToday[currentWindowIndex];
+      const nextWindowIn = formatDuration(getWindowEnd(currentWindowIndex, now) - now);
+
+      document.getElementById('currentCheckInSituation').innerHTML = [
+        `<div class="situation-item"><span class="label">Active window</span><strong>${currentWindowLabel}</strong><div class="helper">${currentWindowRange}</div></div>`,
+        `<div class="situation-item"><span class="label">Current status</span><strong>${currentWindowComplete ? 'Checked off' : 'Not checked off'}</strong><div class="helper">Next window in ${nextWindowIn}</div></div>`
+      ].join('');
+
       const barsMarkup = CHECK_IN_LABELS.map((label, index) => {
         const complete = state.checkInsToday[index];
         const className = complete ? 'complete' : 'incomplete';
+        const currentClass = index === currentWindowIndex ? ' current' : '';
         const status = complete ? 'Complete' : 'Incomplete';
-        return `<div class="bar ${className}"><span>${label}</span><span>${status}</span></div>`;
+        const activeText = index === currentWindowIndex ? 'Active now' : 'Window';
+        return `<div class="bar ${className}${currentClass}"><span class="bar-main"><strong>${label}</strong><span class="bar-window">${getWindowRange(index)}</span></span><span class="bar-status"><strong>${status}</strong><small>${activeText}</small></span></div>`;
       }).join('');
       document.getElementById('checkInBars').innerHTML = barsMarkup;
 
