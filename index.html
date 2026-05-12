@@ -82,6 +82,27 @@
       border-color: rgba(56, 189, 248, 0.42);
     }
 
+    .roll-card {
+      text-align: center;
+      border-color: rgba(250, 204, 21, 0.45);
+    }
+
+    .roll-button {
+      width: min(100%, 18rem);
+      margin-top: 0.75rem;
+      background: var(--yellow);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      filter: grayscale(0.6) brightness(0.75);
+      opacity: 0.72;
+    }
+
+    button:disabled:active {
+      transform: none;
+    }
+
     .label {
       color: var(--muted);
       font-size: 0.92rem;
@@ -270,6 +291,13 @@
       <h1>RollDay100</h1>
     </header>
 
+    <section class="card roll-card" aria-labelledby="roll-heading">
+      <h2 id="roll-heading">Daily Roll</h2>
+      <div id="rollStatus" class="status" role="status" aria-live="polite">Loading...</div>
+      <button id="rollBtn" class="roll-button" type="button">ROLL</button>
+      <p class="helper">The ROLL button unlocks at 12:00 AM and calculates today’s rules from yesterday’s completed bars. It can be pressed once per day.</p>
+    </section>
+
     <section class="card" aria-labelledby="countdown-heading">
       <h2 id="countdown-heading">100-day countdown</h2>
       <div id="countdown" class="countdown" aria-live="polite">Loading...</div>
@@ -373,6 +401,8 @@
           breadChocolateEarned: false,
           breadChocolateRollPassed: false
         },
+        lastRollDateKey: getDateKey(new Date(now)),
+        pendingRoll: null,
         junkFoodKjUsedToday: 0,
         history: []
       };
@@ -394,6 +424,8 @@
           ...freshState.rollStatusToday,
           ...(savedState.rollStatusToday || {})
         },
+        lastRollDateKey: savedState.lastRollDateKey || savedState.currentDateKey || freshState.lastRollDateKey,
+        pendingRoll: savedState.pendingRoll || null,
         history: Array.isArray(savedState.history) ? savedState.history : []
       };
     }
@@ -438,6 +470,24 @@
       return state.dayStartCarryover + getAccruedToday() + state.manualAdjustmentsToday;
     }
 
+    function getBlankRules() {
+      return {
+        fresh: false,
+        coffee: false,
+        chocolate: false,
+        breadChocolate: false
+      };
+    }
+
+    function getBlankRollStatus() {
+      return {
+        chocolateEarned: false,
+        chocolateRollPassed: false,
+        breadChocolateEarned: false,
+        breadChocolateRollPassed: false
+      };
+    }
+
     function generateRulesFromCheckIns(checkIns) {
       const chocolateEarned = Boolean(checkIns[2]);
       const breadChocolateEarned = Boolean(checkIns[3]);
@@ -478,25 +528,60 @@
         state.dayStartCarryover,
         state.manualAdjustmentsToday
       );
-      const generated = generateRulesFromCheckIns(previousCheckIns);
 
       state.history.push({
         date: state.currentDateKey,
         finalBalance,
         checkIns: previousCheckIns,
         currentDayRules: { ...state.currentDayRules },
-        junkFoodKjUsedToday: state.junkFoodKjUsedToday
+        junkFoodKjUsedToday: state.junkFoodKjUsedToday,
+        rolledForDate: state.lastRollDateKey === state.currentDateKey
       });
 
-      state.currentDayRules = generated.rules;
-      state.rollStatusToday = generated.rollStatus;
+      state.pendingRoll = {
+        fromDateKey: state.currentDateKey,
+        forDateKey: todayKey,
+        checkIns: previousCheckIns,
+        finalBalance
+      };
+      state.currentDayRules = getBlankRules();
+      state.rollStatusToday = getBlankRollStatus();
       state.dayStartCarryover = finalBalance;
       state.manualAdjustmentsToday = 0;
       state.checkInsToday = [false, false, false, false];
       state.junkFoodKjUsedToday = 0;
       state.currentDateKey = todayKey;
-      statusMessage = 'New day started. Rules updated.';
+      statusMessage = 'New day started. Press ROLL to calculate today’s rules.';
       saveState();
+    }
+
+    function canRollToday() {
+      const todayKey = getDateKey(new Date());
+      return state.currentDateKey === todayKey
+        && state.pendingRoll
+        && state.pendingRoll.forDateKey === todayKey
+        && state.lastRollDateKey !== todayKey;
+    }
+
+    function handleRoll() {
+      handleDateRollover();
+
+      if (!canRollToday()) {
+        statusMessage = state.lastRollDateKey === state.currentDateKey
+          ? 'Today’s roll has already been used.'
+          : 'ROLL becomes available at 12:00 AM after a completed day.';
+        render();
+        return;
+      }
+
+      const generated = generateRulesFromCheckIns(state.pendingRoll.checkIns);
+      state.currentDayRules = generated.rules;
+      state.rollStatusToday = generated.rollStatus;
+      state.lastRollDateKey = state.currentDateKey;
+      state.pendingRoll = null;
+      statusMessage = 'ROLL complete. Today’s rules were calculated from yesterday’s bars.';
+      saveState();
+      render();
     }
 
     function handleUseJunkFood() {
@@ -570,6 +655,16 @@
         countdownEl.textContent = `${days} days ${String(hours).padStart(2, '0')} hours ${String(minutes).padStart(2, '0')} minutes ${String(seconds).padStart(2, '0')} seconds`;
       }
 
+      const rollBtn = document.getElementById('rollBtn');
+      const rollStatusEl = document.getElementById('rollStatus');
+      const rollAvailable = canRollToday();
+      rollBtn.disabled = !rollAvailable;
+      rollStatusEl.textContent = rollAvailable
+        ? `Ready to roll rules for ${state.currentDateKey} from ${state.pendingRoll.fromDateKey}.`
+        : state.lastRollDateKey === state.currentDateKey
+          ? 'Today’s roll has already been used.'
+          : 'ROLL unlocks at the next 12:00 AM rollover.';
+
       document.getElementById('balance').textContent = Math.floor(getDisplayBalance()).toLocaleString();
       document.getElementById('status').textContent = statusMessage;
 
@@ -591,10 +686,10 @@
       ].join('');
 
       document.getElementById('nextRules').innerHTML = [
-        renderRuleRow('Fresh', { text: state.checkInsToday[0] ? 'Earned for tomorrow' : 'Not yet earned', allowed: state.checkInsToday[0] }),
-        renderRuleRow('Coffee', { text: state.checkInsToday[1] ? 'Earned for tomorrow' : 'Not yet earned', allowed: state.checkInsToday[1] }),
-        renderRuleRow('Chocolate', { text: state.checkInsToday[2] ? '50% roll will occur tomorrow' : 'Not yet earned', allowed: state.checkInsToday[2] }),
-        renderRuleRow('Bread + Chocolate', { text: state.checkInsToday[3] ? '50% roll will occur tomorrow' : 'Not yet earned', allowed: state.checkInsToday[3] })
+        renderRuleRow('Fresh', { text: state.checkInsToday[0] ? 'Earned for tomorrow’s ROLL' : 'Not yet earned', allowed: state.checkInsToday[0] }),
+        renderRuleRow('Coffee', { text: state.checkInsToday[1] ? 'Earned for tomorrow’s ROLL' : 'Not yet earned', allowed: state.checkInsToday[1] }),
+        renderRuleRow('Chocolate', { text: state.checkInsToday[2] ? '50% roll available tomorrow' : 'Not yet earned', allowed: state.checkInsToday[2] }),
+        renderRuleRow('Bread + Chocolate', { text: state.checkInsToday[3] ? '50% roll available tomorrow' : 'Not yet earned', allowed: state.checkInsToday[3] })
       ].join('');
 
       document.getElementById('junkUsage').textContent = `Junk food used today: ${state.junkFoodKjUsedToday} / ${DAILY_JUNK_CAP} kJ`;
@@ -612,6 +707,7 @@
       render();
     }
 
+    document.getElementById('rollBtn').addEventListener('click', handleRoll);
     document.getElementById('useJunkFoodBtn').addEventListener('click', handleUseJunkFood);
     document.getElementById('exerciseBtn').addEventListener('click', handleExercise);
     document.getElementById('checkInBtn').addEventListener('click', handleCheckIn);
