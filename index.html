@@ -339,7 +339,7 @@
     <section class="card situation-card" aria-labelledby="situation-heading">
       <h2 id="situation-heading">Current check-in situation</h2>
       <div id="currentCheckInSituation" class="situation-grid" aria-live="polite"></div>
-      <p class="helper">Only the active six-hour window is checked off when you use an action or press Check In.</p>
+      <p class="helper">Each action or check-in fills the next available rule slot in order.</p>
     </section>
 
     <section class="card roll-card" aria-labelledby="roll-heading">
@@ -379,7 +379,7 @@
     <section class="card" aria-labelledby="bars-heading">
       <h2 id="bars-heading">Today’s check-in bars</h2>
       <div id="checkInBars" class="bars"></div>
-      <p class="helper">Each action checks off the current six-hour window. Today’s completed bars earn possible rules for tomorrow.</p>
+      <p class="helper">Each action or check-in earns the next slot. Today’s check-ins earn tomorrow’s possible rules in order: Fresh, Coffee, Chocolate, then Bread + Chocolate.</p>
     </section>
 
     <section class="card" aria-labelledby="next-rules-heading">
@@ -543,10 +543,20 @@
       return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
+    function getNextCheckInIndex() {
+      return state.checkInsToday.findIndex((checkedIn) => !checkedIn);
+    }
+
     function markCheckIn() {
-      const windowIndex = getCurrentWindowIndex();
-      state.checkInsToday[windowIndex] = true;
+      const nextCheckInIndex = getNextCheckInIndex();
+
+      if (nextCheckInIndex === -1) {
+        return false;
+      }
+
+      state.checkInsToday[nextCheckInIndex] = true;
       saveState();
+      return true;
     }
 
     function getAccruedToday(now = Date.now(), midnight = getTodayMidnight()) {
@@ -688,23 +698,29 @@
 
       state.manualAdjustmentsToday -= 100;
       state.junkFoodKjUsedToday += 100;
-      markCheckIn();
-      statusMessage = 'Used 100 kJ of junk food.';
+      const checkedIn = markCheckIn();
+      statusMessage = checkedIn
+        ? 'Used 100 kJ of junk food and earned the next rule slot.'
+        : 'Used 100 kJ of junk food. All rule slots are already earned.';
       render();
     }
 
     function handleExercise() {
       handleDateRollover();
       state.manualAdjustmentsToday += 100;
-      markCheckIn();
-      statusMessage = 'Exercise added 100 kJ.';
+      const checkedIn = markCheckIn();
+      statusMessage = checkedIn
+        ? 'Exercise added 100 kJ and earned the next rule slot.'
+        : 'Exercise added 100 kJ. All rule slots are already earned.';
       render();
     }
 
     function handleCheckIn() {
       handleDateRollover();
-      markCheckIn();
-      statusMessage = 'Check-in recorded for this window.';
+      const checkedIn = markCheckIn();
+      statusMessage = checkedIn
+        ? 'Check-in recorded. The next rule slot was earned.'
+        : 'All rule slots are already earned for tomorrow.';
       render();
     }
 
@@ -757,23 +773,23 @@
 
       const now = new Date();
       const currentWindowIndex = getCurrentWindowIndex(now);
-      const currentWindowLabel = CHECK_IN_LABELS[currentWindowIndex];
-      const currentWindowRange = getWindowRange(currentWindowIndex);
-      const currentWindowComplete = state.checkInsToday[currentWindowIndex];
+      const nextCheckInIndex = getNextCheckInIndex();
+      const nextRuleLabel = nextCheckInIndex === -1 ? 'All slots earned' : CHECK_IN_LABELS[nextCheckInIndex];
+      const earnedCount = state.checkInsToday.filter(Boolean).length;
       const nextWindowIn = formatDuration(getWindowEnd(currentWindowIndex, now) - now);
 
       document.getElementById('currentCheckInSituation').innerHTML = [
-        `<div class="situation-item"><span class="label">Active window</span><strong>${currentWindowLabel}</strong><div class="helper">${currentWindowRange}</div></div>`,
-        `<div class="situation-item"><span class="label">Current status</span><strong>${currentWindowComplete ? 'Checked off' : 'Not checked off'}</strong><div class="helper">Next window in ${nextWindowIn}</div></div>`
+        `<div class="situation-item"><span class="label">Next check-in earns</span><strong>${nextRuleLabel}</strong><div class="helper">Rules are earned from top to bottom.</div></div>`,
+        `<div class="situation-item"><span class="label">Progress today</span><strong>${earnedCount} / ${CHECK_IN_LABELS.length} slots earned</strong><div class="helper">Current 6-hour window ends in ${nextWindowIn}</div></div>`
       ].join('');
 
       const barsMarkup = CHECK_IN_LABELS.map((label, index) => {
         const complete = state.checkInsToday[index];
         const className = complete ? 'complete' : 'incomplete';
-        const currentClass = index === currentWindowIndex ? ' current' : '';
+        const currentClass = index === nextCheckInIndex ? ' current' : '';
         const status = complete ? 'Complete' : 'Incomplete';
-        const activeText = index === currentWindowIndex ? 'Active now' : 'Window';
-        return `<div class="bar ${className}${currentClass}"><span class="bar-main"><strong>${label}</strong><span class="bar-window">${getWindowRange(index)}</span></span><span class="bar-status"><strong>${status}</strong><small>${activeText}</small></span></div>`;
+        const activeText = complete ? 'Earned in order' : index === nextCheckInIndex ? 'Up next' : 'Locked';
+        return `<div class="bar ${className}${currentClass}"><span class="bar-main"><strong>${label}</strong><span class="bar-window">Check-in ${index + 1}</span></span><span class="bar-status"><strong>${status}</strong><small>${activeText}</small></span></div>`;
       }).join('');
       document.getElementById('checkInBars').innerHTML = barsMarkup;
 
